@@ -1,0 +1,286 @@
+package com.example.expirationdatenotifier;
+
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.app.DatePickerDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.DatePicker;
+import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.SimpleAdapter;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import org.json.JSONObject;
+
+import java.io.StringReader;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Pattern;
+
+
+public class MainActivity extends AppCompatActivity {
+
+    private Button addBtn;
+    private ListView allItemList;
+    private TextView listTitle;
+    private DatePickerDialog.OnDateSetListener dateSetListener;
+
+    private final List<HashMap<String, String>> list = new ArrayList<>();
+    private final HashMap<String, String> storeDateAndTime = new HashMap<>();
+
+    private String dateString = null;
+    private String item;
+    private String date;
+    private String getUserName;
+
+    private int year;
+    private int month;
+    private int day;
+
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+
+        addBtn = (Button)findViewById(R.id.addBtn);
+        allItemList = (ListView)findViewById(R.id.allItemList);
+        listTitle = (TextView)findViewById(R.id.listTitle);
+
+        listTitle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                View view = getLayoutInflater().inflate(R.layout.input_name_edittext, null);
+                EditText name = (EditText)view.findViewById(R.id.name);
+
+                builder.setView(view)
+                        .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.cancel();
+                            }
+                        })
+                        .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                            @RequiresApi(api = Build.VERSION_CODES.N)
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                getUserName = name.getText().toString();
+                                if(getUserName.chars().filter(ch -> ch != ' ').count() <= 15){
+                                    saveName(getUserName);
+                                    listTitle.setText(getUserName);
+                                }
+                                else{
+                                    Toast.makeText(MainActivity.this,
+                                            "Name is too long",
+                                            Toast.LENGTH_LONG).show();
+                                }
+                            }
+                        });
+                builder.show();
+            }
+        });
+
+        addBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                View view = getLayoutInflater().inflate(R.layout.activity_popup_window, null);
+                EditText itemName = (EditText)view.findViewById(R.id.itemName);
+                Button expirationDateBtn = (Button)view.findViewById(R.id.expirationDateBtn);
+
+                builder.setView(view)
+                        .setTitle("Add Item")
+                        .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.cancel();
+                            }
+                        })
+                        .setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                if (itemName.getText().toString().isEmpty() || dateString == null) {
+                                    Toast.makeText(MainActivity.this,
+                                            "Item name or expiration date is missing",
+                                            Toast.LENGTH_LONG).show();
+                                }
+                                else{
+                                    date = expirationDateBtn.getText().toString();
+                                    item = itemName.getText().toString();
+
+                                    storeDateAndTime.put("item", item);
+                                    storeDateAndTime.put("date", date);
+
+                                    SimpleAdapter simpleAdapter = new SimpleAdapter(MainActivity.this,
+                                            list,
+                                            R.layout.activity_listview,
+                                            new String[]{"main", "sub"},
+                                            new int[]{R.id.mainListView, R.id.subListView});
+
+                                    int i = 0;
+                                    while(i < storeDateAndTime.size() / 2){
+                                        HashMap<String, String> resultsMap = new HashMap<>();
+                                        resultsMap.put("main", storeDateAndTime.get("item"));
+                                        resultsMap.put("sub", storeDateAndTime.get("date"));
+                                        list.add(resultsMap);
+                                        i++;
+                                    }
+
+                                    saveHashMap(storeDateAndTime);
+                                    allItemList.setAdapter(simpleAdapter);
+                                }
+                            }
+                        });
+
+
+
+                //when clicked on Expiration Date Btn
+                expirationDateBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        //set current date
+                        Calendar calendar = Calendar.getInstance();
+                        year = calendar.get(Calendar.YEAR);
+                        month = calendar.get(Calendar.MONTH);
+                        day = calendar.get(Calendar.DAY_OF_MONTH);
+
+                        //create date window
+                        DatePickerDialog dialog = new DatePickerDialog(
+                                MainActivity.this,
+                                android.R.style.Theme_Holo_Light,
+                                dateSetListener,
+                                year, month, day);
+                        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                        dialog.show();
+
+
+                        //display date on button
+                        dateSetListener = new DatePickerDialog.OnDateSetListener() {
+                            @Override
+                            public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
+                                month++;
+                                dateString = month + "/" + dayOfMonth + "/" + year;
+                                expirationDateBtn.setText(dateString);
+                            }
+                        };
+                    }
+                });
+
+
+                builder.show();
+
+
+
+            }
+        });
+
+
+        loadName();
+        updateName();
+
+        loadHashMap();
+        updateHashMap();
+
+
+    }
+
+
+    String namePreference = "namePreference";
+    String nameKey = "nameKey";
+    String hashMapPreference = "hashMapPreference";
+    String hashMapKey = "hashMapKey";
+
+    public void saveName(String name) {
+        SharedPreferences sharedPreferences = getSharedPreferences(namePreference, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+
+        editor.putString(nameKey, name);
+        editor.apply();
+    }
+
+    public void loadName() {
+        SharedPreferences sharedPreferences = getSharedPreferences(namePreference, Context.MODE_PRIVATE);
+        getUserName = sharedPreferences.getString(nameKey, "Name");
+    }
+
+    public void updateName() {
+        listTitle.setText(getUserName);
+    }
+
+
+
+    public void saveHashMap(HashMap<String, String> hashMap) {
+        SharedPreferences sharedPreferences = getSharedPreferences(hashMapPreference, Context.MODE_PRIVATE);
+        if (sharedPreferences != null) {
+            JSONObject jsonObject = new JSONObject(hashMap);
+            String jsonString = jsonObject.toString();
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.remove(hashMapKey).apply();
+            editor.putString(hashMapKey, jsonString);
+            editor.commit();
+        }
+    }
+
+    public void loadHashMap() {
+        SharedPreferences sharedPreferences = getSharedPreferences(hashMapPreference, Context.MODE_PRIVATE);
+        try{
+            if (sharedPreferences != null){
+                String jsonString = sharedPreferences.getString(hashMapKey, (new JSONObject()).toString());
+                JSONObject jsonObject = new JSONObject(jsonString);
+                Iterator<String> keysItr = jsonObject.keys();
+                while(keysItr.hasNext()) {
+                    String k = keysItr.next();
+                    String v = (String) jsonObject.get(k);
+                    storeDateAndTime.put(k,v);
+                }
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void updateHashMap() {
+        SimpleAdapter simpleAdapter = new SimpleAdapter(MainActivity.this,
+                list,
+                R.layout.activity_listview,
+                new String[]{"main", "sub"},
+                new int[]{R.id.mainListView, R.id.subListView});
+
+        int i = 0;
+        while(i < storeDateAndTime.size() / 2){
+            HashMap<String, String> resultsMap = new HashMap<>();
+            resultsMap.put("main", storeDateAndTime.get("item"));
+            resultsMap.put("sub", storeDateAndTime.get("date"));
+            list.add(resultsMap);
+            i++;
+        }
+
+        allItemList.setAdapter(simpleAdapter);
+    }
+
+}
